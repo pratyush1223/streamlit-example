@@ -1,40 +1,84 @@
-import altair as alt
-import numpy as np
 import pandas as pd
+from ctgan import CTGAN
+from io import StringIO
 import streamlit as st
 
-"""
-# Welcome to Streamlit!
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:.
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+def SDUI():
+    global data
+    global records
+    trig = False
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+    try:
+        records = int(st.text_input('Number of records to be generated: ', '10', key=100007))
+        trig = True
 
-num_points = st.slider("Number of points in spiral", 1, 10000, 1100)
-num_turns = st.slider("Number of turns in spiral", 1, 300, 31)
+    except:
+        e = RuntimeError('Enter a valid number.')
+        st.exception(e)
 
-indices = np.linspace(0, 1, num_points)
-theta = 2 * np.pi * num_turns * indices
-radius = indices
+    uploaded_file = st.file_uploader("Choose a file", accept_multiple_files=False)
+    if uploaded_file is not None:
+        # # To read file as bytes:
+        # bytes_data = uploaded_file.getvalue()
+        # # st.write(bytes_data)
+        #
+        # # To convert to a string based IO:
+        # stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
+        # # st.write(stringio)
+        #
+        # # To read file as string:
+        # string_data = stringio.read()
+        # # st.write(string_data)
 
-x = radius * np.cos(theta)
-y = radius * np.sin(theta)
+        # Can be used wherever a "file-like" object is accepted:
+        data = pd.read_csv(uploaded_file)
+        print(data)
 
-df = pd.DataFrame({
-    "x": x,
-    "y": y,
-    "idx": indices,
-    "rand": np.random.randn(num_points),
-})
+        coltype = data.columns.to_series().groupby(data.dtypes).groups
+        obj = []
+        for i, j in coltype.items():
+            if str(i) == 'object':
+                obj = list(j)
 
-st.altair_chart(alt.Chart(df, height=700, width=700)
-    .mark_point(filled=True)
-    .encode(
-        x=alt.X("x", axis=None),
-        y=alt.Y("y", axis=None),
-        color=alt.Color("idx", legend=None, scale=alt.Scale()),
-        size=alt.Size("rand", legend=None, scale=alt.Scale(range=[1, 150])),
-    ))
+        catCol = st.text_input('Categorical Features: ', '')
+        catCol = catCol.replace(" ", "")
+
+        if catCol == '' and len(obj) <= 0:
+            if trig:
+                if st.button("Generate Data", type="primary", key=100008):
+                    ctgan = CTGAN(verbose=True)
+                    ctgan.fit(data, epochs=200)
+
+                    samples = ctgan.sample(10)
+                    print(samples)
+
+        elif catCol == '' and len(obj) > 0:
+            categorical_features = obj
+            if trig:
+
+                if st.button("Generate Data", type="primary", key=100009):
+                    ctgan = CTGAN(verbose=True)
+                    ctgan.fit(data, categorical_features, epochs=200)
+
+                    samples = ctgan.sample(10)
+                    print(samples)
+
+        else:
+            if len(obj) > 0:
+                for i in obj:
+                    catCol += "," + i
+
+            categorical_features = set(catCol.split(','))
+            categorical_features = list(categorical_features)
+
+            if trig:
+                if st.button("Generate Data", type="primary", key=100009):
+                    ctgan = CTGAN(verbose=True)
+                    ctgan.fit(data, categorical_features, epochs=200)
+                    samples = ctgan.sample(10)
+                    print(samples)
+
+    else:
+        e = RuntimeError('Upload a file.')
+        st.exception(e)
